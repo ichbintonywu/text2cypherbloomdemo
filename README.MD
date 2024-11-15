@@ -23,10 +23,8 @@ docker run --name redis-container -p 6379:6379 -d redis
 ### 3. AWS AMI Setup
 #### Connect to EC2 Instance
 
-	1.	Instance Information:
-	•	Instance ID: i-0d884231d893caa1a (tonywudemo)
-	•	Public DNS: ec2-3-107-95-58.ap-southeast-2.compute.amazonaws.com
-	2.	Locate your private key file (tonywudemo.pem).
+	1.	Instance Information
+	2.	Locate your private key file (xxxx.pem).
 	3.	Change the permissions of the key file (if necessary)
 	4.	Connect to the EC2 instance using SSH
 
