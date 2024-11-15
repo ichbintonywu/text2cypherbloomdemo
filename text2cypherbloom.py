@@ -6,7 +6,6 @@ import sys
 sys.path.append("./_drivers")
 from _drivers.llama3qahelper import custom_llama_qahelper
 from _drivers.neo4j_handler import gdsrun
-myBloomlist= ["bank account transfer", "disease path", "financial investment", "person interacted with websites","person-company-financial product"]
 
 st.set_page_config(page_title="Free question helper",layout="wide")
 st.title("Fraud Detection - Bot & Plot")
@@ -81,11 +80,9 @@ if submit_button:
     valid_cypher,valid_context = custom_llama_qahelper(my_question)
     st.write(valid_cypher)
     st.write(valid_context)
-
     st.session_state['liked'] = valid_cypher
-
     actual_phrase =  "runCypher" + str(valid_cypher).replace(" ","%20").replace(";","")
-    iframe_src =f"""https://bloom.neo4j.io/index.html?connectURL=ab7a7fae.databases.neo4j.io&run=true&search={actual_phrase}"""
+    iframe_src =f"""https://bloom.neo4j.io/index.html?connectURL=xxxx.neo4j.io&run=true&search={actual_phrase}"""
     components.iframe(iframe_src, height=800, scrolling=True)
 
 if submit_likeButtion:
@@ -103,7 +100,6 @@ if submit_likeButtion:
 
 
 with st.form(key='Bloom_Form',clear_on_submit=False):
-
     queryLLMCypher = """
     MATCH (n:LLMCypher)
     RETURN n.key AS key, n.value AS value
@@ -111,7 +107,6 @@ with st.form(key='Bloom_Form',clear_on_submit=False):
     queryLLMCypherResult = gdsrun(queryLLMCypher)
     df = pd.DataFrame(queryLLMCypherResult)
 
-    # Check if DataFrame is empty
     if df.empty:
         options =("empty")
     else:
@@ -125,7 +120,7 @@ with st.form(key='Bloom_Form',clear_on_submit=False):
 
         if submit_displayBloom:
             actual_phrase =  "runCypher" + str(searchPhraseBloom).replace(" ","%20").replace(";","")
-            iframe_src =f"""https://bloom.neo4j.io/index.html?connectURL=ab7a7fae.databases.neo4j.io&run=true&search={actual_phrase}"""
+            iframe_src =f"""https://bloom.neo4j.io/index.html?connectURL=xxxx.databases.neo4j.io&run=true&search={actual_phrase}"""
             components.iframe(iframe_src, height=800, scrolling=True)
 
 
