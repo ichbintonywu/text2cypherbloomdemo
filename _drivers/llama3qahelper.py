@@ -15,26 +15,39 @@ import redis
 from langchain.globals import set_llm_cache
 
 REDIS_URL = st.secrets["REDIS_URL"]
-r = redis.Redis(host="", port=6379, username="", password="", db=0)
+
+r = redis.Redis(host="localhost", port=6379, username="default", password="admin", db=0)
+print(r.ping())
+
 print(f"Connecting to Redis at: {REDIS_URL}")
 redis_cache = RedisCache(r)
 set_llm_cache(redis_cache)
 
-NEO4J_HOST = 
-NEO4J_USER = 
-NEO4J_PASSWORD = 
-AZURE_VERSION = 
-AZURE_ENDPOINT = 
-AZURE_4ODEPLOYMENT = 
-AZURE_API_KEY = 
+NEO4J_HOST = st.secrets["NEO4J_AURA_YT"]+":"+st.secrets["NEO4J_PORT"]
+NEO4J_USER = st.secrets["NEO4J_AURA_YT_USER"]
+NEO4J_PASSWORD = st.secrets["NEO4J_AURA_YT_PASSWORD"]
+
+os.environ["NEO4J_URI"] = NEO4J_HOST
+os.environ["NEO4J_USERNAME"] = NEO4J_USER
+os.environ["NEO4J_PASSWORD"] = NEO4J_PASSWORD
+OLLAMA_MODEL = st.secrets["LLAMA_MODEL"]
+OLLAMA_URL = st.secrets["LLAMA_BASE_URL"]
 
 graph = Neo4jGraph(
     url=os.environ["NEO4J_URI"], username=os.environ["NEO4J_USERNAME"], password=os.environ["NEO4J_PASSWORD"]
 )
-api_version = AZURE_VERSION
-endpoint = AZURE_ENDPOINT
-gptdeployment = AZURE_4ODEPLOYMENT
-api_key = AZURE_API_KEY
+graph.refresh_schema()
+
+llm = OllamaLLM(
+    model = OLLAMA_MODEL,
+    temperature = 0,
+    base_url = OLLAMA_URL
+)
+
+api_version = st.secrets["AZURE_OPENAI_API_VERSION2"]
+endpoint = st.secrets["AZURE_OPENAI_ENDPOINT2"]
+gptdeployment = st.secrets["AZURE_OPENAI_DEPLOYMENT2"]
+api_key = st.secrets["AZURE_OPENAI_API_KEY2"]
 
 openaillm = AzureChatOpenAI(
     api_version=api_version,
@@ -54,17 +67,16 @@ Schema:
 Note: Do not include any explanations or apologies in your responses.
 Do not respond to any questions that might ask anything else than for you to construct a Cypher statement.
 Do not include any text except the generated Cypher statement.
+
 Examples: Here are a few examples of generated Cypher statements for particular questions:
-# What app groups are present in the Department IT?
-MATCH (d:DEPARTMENT {{name: "IT"}})<-[:DEPARTMENT_OF]-(ag:APPLICATION_GROUP) RETURN ag;
-
-# What Departments are present in the Organisation Ack
-MATCH (o:ORGANIZATION {{name: "Ack"}})<-[:ORGANIZATION_BY]-(d:DEPARTMENT) RETURN d.name AS departmentName;
-
-# Clients have Transaction with FirstPartyFraudster return the entire path
+# Question:  Clients have Transaction with FirstPartyFraudster return the entire path
 MATCH path = (c:Client)-[:PERFORMED]->(t:Transaction)-[:TO]->(f:FirstPartyFraudster) RETURN path;
 
-# FirstPartyFraudster transfer to other Clients, return the entire path?
+# Question: Find circular money transfers from one BankAccount, which is from Financial Institute, to another BankAccount, where the transactions involve up to 3 hops, return the entire path
+# in above query, up to 3 hops is translated into Cypher 1..3 in the relationship, Financial Institute connect to Bank Account, then start search from Bank Account to other Bank Account via node Money Transfer, * represents the variable length search
+MATCH path =(:FinancialInstitute)-[:FROM]-(a:BankAccount)-[:SEND|FROM]-(n:MoneyTransfer)-[:SEND|FROM*1..3]-(a) return path
+
+# FirstPartyFraudster transfer to other Clients, return the entire path
 MATCH path = (f:FirstPartyFraudster)-[:TRANSFER_TO]->(c:Client) RETURN path;
 
 # Identify clients sharing PII
@@ -76,7 +88,7 @@ The question is:
 CYPHER_GENERATION_PROMPT = PromptTemplate(
     input_variables=["schema", "question"], template=CYPHER_GENERATION_TEMPLATE
 )
-
+# Define function to trim Cypher query
 def trim_query(query: str) -> str:
     """Trim the query to only include Cypher keywords."""
     keywords = (
@@ -91,12 +103,14 @@ def trim_query(query: str) -> str:
             new_query += line + "\n"
     return new_query.strip()
 
+# Define function to extract Cypher code from text
 def extract_cypher(text: str) -> str:
     """Extract Cypher code from text using Regex."""
     pattern = r"```(.*?)```"
     matches = re.findall(pattern, text, re.DOTALL)
     return matches[0].strip() if matches else text.strip()
 
+# Define your custom chain class
 class CustomGraphCypherQAChain(GraphCypherQAChain):
     captured_cypher: Optional[str] = None
     captured_context: Optional[str] = None
@@ -117,13 +131,22 @@ class CustomGraphCypherQAChain(GraphCypherQAChain):
         generated_cypher = self.cypher_generation_chain.run(
             {"question": question, "schema": schema}
         )
+
+        # Clean up the generated Cypher
         generated_cypher = extract_cypher(generated_cypher)
         generated_cypher = trim_query(generated_cypher)
+
         intermediate_steps.append({"query": generated_cypher})
+
+        # Capture the generated Cypher and context for return
         self.captured_cypher = generated_cypher
         self.captured_context = "Context placeholder"  # Replace with actual context extraction logic if needed
+
+        # Example: Extracting context from generated Cypher query
         context = self.graph.query(generated_cypher)[: self.top_k]
         self.captured_context = context
+
+        # Terminate the function as soon as valid values are generated
         if generated_cypher and context:
             return {self.output_key: {"cypher": self.captured_cypher, "context": self.captured_context}}
         else:
@@ -132,6 +155,7 @@ class CustomGraphCypherQAChain(GraphCypherQAChain):
     def get_captured_cypher_and_context(self):
         return self.captured_cypher, self.captured_context
 
+# Instantiate the custom chain
 def create_chain():
     return CustomGraphCypherQAChain.from_llm(
         graph=graph,
@@ -143,19 +167,39 @@ def create_chain():
         return_intermediate_steps=False,allow_dangerous_requests=True  # Ensure intermediate steps are not returned
     )
 
+# Define the function to run a chain with a given question
+# def run_chain(chain, question):
+#     try:
+#         result = chain.invoke(question)['result']
+#         generated_cypher = result.get("cypher")
+#         context = result.get("context")
+#         if generated_cypher and context:
+#             return generated_cypher, context
+#     except Exception as e:
+#         print(f"Error invoking chain: {e}")
+#     return None, None
 def run_chain(chain, question):
     try:
-        result = chain.invoke(question)['result']
-        generated_cypher = result.get("cypher")
-        context = result.get("context")
-        if generated_cypher and context:
-            return generated_cypher, context
+        # Invoke the chain and get the output
+        output = chain.invoke(question)
+        
+        # Check if the output contains the 'result' key
+        if 'result' in output:
+            result = output['result']
+            # Extract 'cypher' and 'context' safely
+            generated_cypher = result.get("cypher")
+            context = result.get("context")
+            if generated_cypher and context:
+                return generated_cypher, context
+        else:
+            print("Error: 'result' key is missing in the chain output.")
     except Exception as e:
         print(f"Error invoking chain: {e}")
     return None, None
 
-def run_parallel_chains(question, timeout=60):
-    chains = [create_chain() for _ in range(5)]  # Adjust the number of chains as needed
+# Define the main function to run multiple chains in parallel
+def run_parallel_chains(question, timeout=120):
+    chains = [create_chain() for _ in range(7)]  # Adjust the number of chains as needed
     with ThreadPoolExecutor() as executor:
         future_to_chain = {executor.submit(run_chain, chain, question): chain for chain in chains}
         for future in as_completed(future_to_chain, timeout=timeout):
