@@ -18,3 +18,12 @@ def gdsrun(query):
     gds.set_database(db)
     return gds.run_cypher(query)
 
+def exec_cypher_query(qry_str):
+    with driver.session() as session:
+        result = session.execute_read(do_cypher_tx,qry_str)
+        return result
+    
+def write_cypher_query(qry_str):
+    with driver.session() as session:
+        result = session.execute_write(do_cypher_tx,qry_str)
+        return result
