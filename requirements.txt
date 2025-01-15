@@ -1,0 +1,12 @@
+fsspec
+pypdf
+neo4j
+graphdatascience
+openai
+langchain_ollama
+langchain_core
+langchain_community
+langchain_openai
+redis
+langchain
+streamlit

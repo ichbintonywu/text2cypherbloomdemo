@@ -16,7 +16,7 @@ from langchain.globals import set_llm_cache
 
 REDIS_URL = st.secrets["REDIS_URL"]
 
-r = redis.Redis(host="localhost", port=6379, username="default", password="admin", db=0)
+r = redis.Redis(host=st.secrets["REDIS_HOST"], port=6379, username="default", password="admin", db=0)
 print(r.ping())
 
 print(f"Connecting to Redis at: {REDIS_URL}")
