@@ -11,6 +11,14 @@ URI = host
 AUTH = (user, password)
 driver = GraphDatabase.driver(URI, auth=AUTH)
 
+
+def do_cypher_tx(tx,cypher):
+    results = tx.run(cypher)
+    values = []
+    for record in results:
+        values.append(record.values())
+    return values
+    
 def gdsrun(query):
     gds = GraphDataScience(
         host,
